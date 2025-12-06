@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { ReservationStatus } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 // 強制動態渲染，確保每次請求都獲取最新資料
 export const dynamic = "force-dynamic";
@@ -8,12 +10,17 @@ type StatusFilter = "all" | "PENDING" | "CONFIRMED" | "CANCELLED";
 
 async function getReservations(statusFilter?: string) {
   try {
-    const where: { status?: string } = {};
+    // 安全地將 string 轉換為 ReservationStatus enum
+    const rawStatus = statusFilter && statusFilter !== "all" ? statusFilter : undefined;
+    const status =
+      rawStatus && Object.values(ReservationStatus).includes(rawStatus as ReservationStatus)
+        ? (rawStatus as ReservationStatus)
+        : undefined;
 
-    // 根據篩選狀態設定 where 條件
-    if (statusFilter && statusFilter !== "all") {
-      where.status = statusFilter;
-    }
+    // 定義 where 條件，確保型別符合 Prisma 的 ReservationWhereInput
+    const where: Prisma.ReservationWhereInput = status
+      ? { status }
+      : {};
 
     const reservations = await prisma.reservation.findMany({
       where,

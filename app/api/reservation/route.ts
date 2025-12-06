@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ReservationLog, ReservationLogSchema } from '@/app/types/reservationLog';
 import { prisma } from '@/lib/prisma';
-import { createCalendarEvent } from '@/lib/googleCalendar';
+import { createGoogleCalendarEvent } from "@/lib/googleCalendar";
 
 export const runtime = 'nodejs';
 
@@ -216,15 +216,21 @@ export async function POST(req: NextRequest) {
       console.log('開始寫入資料庫...');
       console.log('Resource ID:', resourceId);
       
+      // 解析時間格式：將 date 和 time 轉換為 reservedStart 和 reservedEnd
+      const { startTime, endTime } = parseTimeToISO(frontendPayload.date, frontendPayload.time);
+      const reservedStart = new Date(startTime);
+      const reservedEnd = new Date(endTime);
+      
       // 使用 Prisma 直接寫入資料庫
       const reservation = await prisma.reservation.create({
         data: {
-          resourceId: resourceId,
-          name: frontendPayload.name,
+          customerName: frontendPayload.name,
           phone: frontendPayload.phone,
-          date: frontendPayload.date,
-          time: frontendPayload.time,
-          people: frontendPayload.people || 1,
+          peopleCount: frontendPayload.people || 1,
+          reservedStart: reservedStart,
+          reservedEnd: reservedEnd,
+          notes: frontendPayload.notes || null,
+          status: "PENDING",
         }
       });
 
@@ -234,13 +240,23 @@ export async function POST(req: NextRequest) {
       // === 同步到 Google Calendar ===
       try {
         console.log('開始同步到 Google Calendar...');
-        await createCalendarEvent({
-          name: reservation.name,
-          phone: reservation.phone,
-          date: reservation.date,
-          time: reservation.time,
-          people: reservation.people,
-          notes: frontendPayload.notes || '',
+        
+        // 組合 summary 和 description
+        const summary = `${reservation.customerName} - ${reservation.peopleCount}人預約`;
+        const description = [
+          `姓名：${reservation.customerName}`,
+          `電話：${reservation.phone}`,
+          `人數：${reservation.peopleCount} 人`,
+          reservation.notes ? `備註：${reservation.notes}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+        
+        await createGoogleCalendarEvent({
+          summary,
+          description,
+          startDateTime: reservation.reservedStart.toISOString(),
+          endDateTime: reservation.reservedEnd.toISOString(),
         });
         console.log('✅ Google Calendar 同步成功');
       } catch (calendarError: any) {
@@ -255,11 +271,11 @@ export async function POST(req: NextRequest) {
           message: '預約成功！',
           data: {
             id: reservation.id,
-            name: reservation.name,
+            customerName: reservation.customerName,
             phone: reservation.phone,
-            date: reservation.date,
-            time: reservation.time,
-            people: reservation.people,
+            peopleCount: reservation.peopleCount,
+            reservedStart: reservation.reservedStart,
+            reservedEnd: reservation.reservedEnd,
             createdAt: reservation.createdAt,
           }
         },
