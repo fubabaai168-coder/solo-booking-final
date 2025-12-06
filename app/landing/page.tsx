@@ -93,9 +93,13 @@ const MenuSection = () => {
 
 export default function LandingPage() {
   return (
-    // 使用 div 替換 main，並設定 pt-16 以避免被 Navbar 遮擋
-    <div className="min-h-screen pt-16 bg-gradient-to-br from-amber-50 to-orange-100"> 
-      <Navbar />
+    <>
+      <div className="fixed top-4 right-4 z-50 rounded bg-black/80 px-3 py-1 text-xs font-mono text-white">
+        VERSION: 2025-02-15 soloai-brunch-demo
+      </div>
+      {/* 使用 div 替換 main，並設定 pt-16 以避免被 Navbar 遮擋 */}
+      <div className="min-h-screen pt-16 bg-gradient-to-br from-amber-50 to-orange-100"> 
+        <Navbar />
       <HeroSection />
       <MenuSection />
       <AboutSection />
@@ -107,6 +111,7 @@ export default function LandingPage() {
       </footer>
 
       <ChatAssistant />
-    </div>
+      </div>
+    </>
   );
 }

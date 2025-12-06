@@ -2,7 +2,11 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-orange-100 flex flex-col items-center justify-center px-8 text-center">
+    <>
+      <div className="fixed top-4 right-4 z-50 rounded bg-black/80 px-3 py-1 text-xs font-mono text-white">
+        VERSION: 2025-02-15 soloai-brunch-demo
+      </div>
+      <main className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-orange-100 flex flex-col items-center justify-center px-8 text-center">
       <div className="max-w-5xl">
         <h1 className="text-7xl md:text-9xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-600 mb-6 leading-tight">
           微光暖食
@@ -22,5 +26,6 @@ export default function Home() {
         </Link>
       </div>
     </main>
+    </>
   );
 }
