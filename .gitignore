@@ -39,6 +39,8 @@ localbizfinder-*.json.json
 !package.json
 !package-lock.json
 !tsconfig.json
+service-account/*.json
+service-account/google-calendar-service-account.json
 
 # vercel
 .vercel

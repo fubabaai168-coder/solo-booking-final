@@ -1,113 +1,208 @@
-import { prisma } from '@/lib/prisma';
+import { prisma } from "@/lib/prisma";
+import Link from "next/link";
 
 // 強制動態渲染，確保每次請求都獲取最新資料
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-async function getReservations() {
+type StatusFilter = "all" | "PENDING" | "CONFIRMED" | "CANCELLED";
+
+async function getReservations(statusFilter?: string) {
   try {
+    const where: { status?: string } = {};
+
+    // 根據篩選狀態設定 where 條件
+    if (statusFilter && statusFilter !== "all") {
+      where.status = statusFilter;
+    }
+
     const reservations = await prisma.reservation.findMany({
+      where,
+      select: {
+        id: true,
+        customerName: true,
+        peopleCount: true,
+        reservedStart: true,
+        reservedEnd: true,
+        status: true,
+        calendarEventId: true,
+        createdAt: true,
+      },
       orderBy: {
-        createdAt: 'desc',
+        reservedStart: "desc",
       },
     });
     return reservations;
   } catch (error) {
-    console.error('查詢預約記錄失敗:', error);
+    console.error("查詢預約記錄失敗:", error);
     return [];
   }
 }
 
-export default async function ReservationsPage() {
-  const reservations = await getReservations();
+function formatDateTime(date: Date): string {
+  // 轉換為台北時間（UTC+8）並格式化
+  const d = new Date(date);
+  
+  // 使用 Intl.DateTimeFormat 轉換為台北時間
+  const formatter = new Intl.DateTimeFormat("zh-TW", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  
+  const parts = formatter.formatToParts(d);
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+  const hour = parts.find((p) => p.type === "hour")?.value;
+  const minute = parts.find((p) => p.type === "minute")?.value;
+  
+  // 友善格式：YYYY/MM/DD HH:mm
+  return `${year}/${month}/${day} ${hour}:${minute}`;
+}
+
+function formatTimeRange(start: Date, end: Date): string {
+  // 轉換為台北時間
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  
+  // 使用 Intl.DateTimeFormat 檢查是否為同一天（台北時間）
+  const dateFormatter = new Intl.DateTimeFormat("zh-TW", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  
+  const timeFormatter = new Intl.DateTimeFormat("zh-TW", {
+    timeZone: "Asia/Taipei",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  
+  const startDateStr = dateFormatter.format(startDate);
+  const endDateStr = dateFormatter.format(endDate);
+  const isSameDay = startDateStr === endDateStr;
+  
+  if (isSameDay) {
+    // 同一天：只顯示一次日期，格式：YYYY/MM/DD HH:mm ~ HH:mm
+    const dateStr = startDateStr.replace(/\//g, "/");
+    const startTime = timeFormatter.format(startDate);
+    const endTime = timeFormatter.format(endDate);
+    return `${dateStr} ${startTime} ~ ${endTime}`;
+  } else {
+    // 不同天：顯示完整時間範圍
+    const startStr = formatDateTime(start);
+    const endStr = formatDateTime(end);
+    return `${startStr} ~ ${endStr}`;
+  }
+}
+
+interface PageProps {
+  searchParams?: { status?: string };
+}
+
+export default async function ReservationsPage({ searchParams }: PageProps) {
+  const currentStatus = ((searchParams?.status as StatusFilter) || "all") as StatusFilter;
+  const reservations = await getReservations(currentStatus);
+
+  const statusOptions: { value: StatusFilter; label: string }[] = [
+    { value: "all", label: "全部" },
+    { value: "PENDING", label: "PENDING" },
+    { value: "CONFIRMED", label: "CONFIRMED" },
+    { value: "CANCELLED", label: "CANCELLED" },
+  ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        {/* 頁面標題 */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            📅 預約管理系統
-          </h1>
-          <p className="text-gray-600">
-            總共 {reservations.length} 筆預約記錄
-          </p>
-        </div>
+    <div>
+      <h1 className="text-3xl font-bold text-orange-600 mb-6">
+        早午餐預約列表
+      </h1>
 
-        {/* 預約記錄表格 */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-          {reservations.length === 0 ? (
-            <div className="p-12 text-center">
-              <p className="text-gray-500 text-lg">目前尚無預約資料</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                      📅 日期
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                      🕒 時段
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                      👤 姓名
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                      📞 電話
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                      👥 人數
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                      📝 建立時間
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {reservations.map((reservation) => (
-                    <tr
-                      key={reservation.id}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap border-b border-gray-100">
-                        <div className="text-sm font-medium text-gray-900">
-                          {reservation.date}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap border-b border-gray-100">
-                        <div className="text-sm text-gray-900">
-                          {reservation.time}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap border-b border-gray-100">
-                        <div className="text-sm font-medium text-gray-900">
-                          {reservation.name}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap border-b border-gray-100">
-                        <div className="text-sm text-gray-900">
-                          {reservation.phone}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap border-b border-gray-100">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                          {reservation.people} 人
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap border-b border-gray-100">
-                        <div className="text-sm text-gray-900">
-                          {new Date(reservation.createdAt).toLocaleString('zh-TW')}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+      {/* 狀態篩選按鈕組 */}
+      <div className="flex gap-3 mb-6 flex-wrap">
+        {statusOptions.map((option) => {
+          const isActive = currentStatus === option.value;
+          return (
+            <Link
+              key={option.value}
+              href={
+                option.value === "all"
+                  ? "/admin/reservations"
+                  : `/admin/reservations?status=${option.value}`
+              }
+              className={`px-6 py-2 rounded-xl text-sm font-semibold transition-all ${
+                isActive
+                  ? "bg-gradient-to-r from-orange-400 to-orange-500 text-white shadow-warm"
+                  : "bg-white text-gray-700 border border-gray-200 hover:bg-orange-50"
+              }`}
+            >
+              {option.label}
+            </Link>
+          );
+        })}
       </div>
+
+      <p className="mb-6 text-gray-600 text-lg">
+        總共 {reservations.length} 筆預約記錄
+        {currentStatus !== "all" && `（${currentStatus}）`}
+      </p>
+
+      {reservations.length === 0 ? (
+        <div style={{ padding: "40px", textAlign: "center", color: "#999" }}>
+          <p>目前尚無預約資料</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {reservations.map((reservation) => (
+            <div
+              key={reservation.id}
+              className="bg-white rounded-2xl p-6 shadow-warm hover:shadow-xl transition-all"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-xl font-bold text-orange-600">
+                  {reservation.customerName}
+                </h3>
+                <span
+                  className={`px-3 py-1 rounded-full text-sm ${
+                    reservation.status === "CONFIRMED"
+                      ? "bg-green-100 text-green-800"
+                      : reservation.status === "PENDING"
+                      ? "bg-yellow-100 text-yellow-800"
+                      : "bg-red-100 text-red-800"
+                  }`}
+                >
+                  {reservation.status === "CONFIRMED"
+                    ? "已確認"
+                    : reservation.status === "PENDING"
+                    ? "待處理"
+                    : "已取消"}
+                </span>
+              </div>
+              <p className="text-gray-600 mb-2">
+                時間：{formatTimeRange(
+                  reservation.reservedStart,
+                  reservation.reservedEnd
+                )}
+              </p>
+              <p className="text-gray-600 mb-2">
+                人數：{reservation.peopleCount} 人
+              </p>
+              <p className="text-gray-600 mt-3 text-sm">
+                {reservation.calendarEventId ? (
+                  <span className="text-green-600">✓ 已建立日曆</span>
+                ) : (
+                  <span className="text-gray-400">未建立日曆</span>
+                )}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

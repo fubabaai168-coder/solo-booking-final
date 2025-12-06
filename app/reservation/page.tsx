@@ -1,289 +1,309 @@
+// app/reservation/page.tsx
+
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { FormEvent, useState, useEffect } from "react";
 
-// 時段選項
-const timeSlots = [
-  { value: "06:00-10:30", label: "06:00 - 10:30 早午餐" },
-  { value: "11:30-14:00", label: "11:30 - 14:00 午餐" },
-  { value: "14:00-17:00", label: "14:00 - 17:00 下午茶" },
-  { value: "18:00-20:00", label: "18:00 - 20:00 晚餐" },
-];
+type ApiResponse =
+  | {
+      message: string;
+      reservation: {
+        id: string;
+        customerName: string;
+        // 其他欄位略
+      };
+      calendarEvent: {
+        id?: string;
+        htmlLink?: string;
+        // 其他欄位略
+      };
+      submittedData?: {
+        date: string;
+        selectedSlotId: string;
+        peopleCount: number;
+        customerName: string;
+      };
+    }
+  | {
+      error: string;
+    };
 
-// TypeScript 型別定義
-interface ReservationPayload {
-  name: string;
-  phone: string;
-  date: string;
-  time: string;
-  people: number;
-  notes?: string;
-}
+import { TIME_SLOTS } from "@/lib/timeSlots";
 
-interface ApiResponse {
-  success?: boolean;
-  ok?: boolean;
-  message?: string;
-  error?: string;
+function toIsoFromDateAndSlot(date: string, slot: { start: string; end: string }) {
+  const start = new Date(`${date}T${slot.start}`);
+  const end = new Date(`${date}T${slot.end}`);
+  return {
+    reservedStart: start.toISOString(),
+    reservedEnd: end.toISOString(),
+  };
 }
 
 export default function ReservationPage() {
-  const [formData, setFormData] = useState<ReservationPayload>({
-    name: "",
-    phone: "",
-    date: "",
-    time: "",
-    people: 1,
-    notes: "",
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [peopleCount, setPeopleCount] = useState(2);
+  const [date, setDate] = useState("");
+  const [selectedSlotId, setSelectedSlotId] = useState("");
+  const [notes, setNotes] = useState("");
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: name === "people" ? parseInt(value) || 1 : value,
-    }));
-  };
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<ApiResponse | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  // 計算今天日期字串（YYYY-MM-DD）
+  const today = new Date().toISOString().slice(0, 10);
+
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    console.log("=== 表單提交開始 ===");
-    setErrorMessage("");
-    setSuccessMessage("");
-    setIsLoading(true);
+    setResult(null);
 
-    // 前端驗證
-    if (!formData.name || !formData.phone || !formData.date || !formData.time) {
-      setErrorMessage("請填寫所有必填欄位");
-      setIsLoading(false);
+    // 驗證邏輯調整
+    if (!date) {
+      setResult({ error: "請選擇用餐日期" });
       return;
     }
 
-    const payload: ReservationPayload = {
-      name: formData.name.trim(),
-      phone: formData.phone.trim(),
-      date: formData.date,
-      time: formData.time,
-      people: formData.people || 1,
-      notes: formData.notes?.trim() || "",
+    if (!selectedSlotId) {
+      setResult({ error: "請選擇用餐時段" });
+      return;
+    }
+
+    // 依 selectedSlotId 找出對應的 slot
+    const slot = TIME_SLOTS.find((s) => s.id === selectedSlotId);
+    if (!slot) {
+      setResult({ error: "無效的時段選擇" });
+      return;
+    }
+
+    // 使用 date + slot 計算 reservedStart / reservedEnd
+    const { reservedStart, reservedEnd } = toIsoFromDateAndSlot(date, slot);
+
+    // 送出時再 double-check：禁止預約過去時間
+    const now = new Date();
+    const reservedEndDate = new Date(reservedEnd);
+    if (reservedEndDate <= now) {
+      setResult({ error: "不能預約過去的時間" });
+      return;
+    }
+
+    // 準備確認資訊 summary
+    const summaryText = `您即將預約：${date} ${slot.label}，${peopleCount} 人，姓名：${customerName}`;
+    
+    // 送出前確認（必要）
+    const ok = window.confirm(summaryText);
+    if (!ok) return; // 使用者按取消就不送出
+
+    // 保存提交的資料，用於顯示 recap（在清空表單後仍能顯示）
+    const submittedData = {
+      date,
+      selectedSlotId,
+      peopleCount,
+      customerName,
     };
 
-    console.log("準備發送的資料：", payload);
-    console.log("API 路徑：/api/reservation");
-
+    setLoading(true);
     try {
-      const res = await fetch("/api/reservation", {
+      const res = await fetch("/api/reservations/create", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName,
+          phone,
+          peopleCount,
+          reservedStart,
+          reservedEnd,
+          notes,
+        }),
       });
 
-      console.log("收到 API 回應，狀態碼：", res.status);
+      const data = (await res.json()) as ApiResponse;
 
-      let result: ApiResponse = {};
-      try {
-        result = await res.json();
-        console.log("API 回應內容：", result);
-      } catch (parseError) {
-        console.error("解析 API 回應失敗：", parseError);
-        setErrorMessage("伺服器回應格式錯誤，請稍後再試");
-        setIsLoading(false);
-        return;
-      }
-
-      // 處理成功回應（2xx 狀態碼且 success 為 true）
-      if (res.ok && result.success) {
-        setSuccessMessage(result.message || "預約成功！");
-        // 清空表單
-        setFormData({
-          name: "",
-          phone: "",
-          date: "",
-          time: "",
-          people: 1,
-          notes: "",
-        });
+      if (!res.ok) {
+        setResult(
+          "error" in data
+            ? data
+            : { error: "建立預約時發生錯誤，請稍後再試。" }
+        );
       } else {
-        // 處理失敗回應（非 2xx 或 success 為 false）
-        const errorMsg = result.message || result.error || "預約失敗，請稍後再試";
-        setErrorMessage(`預約失敗：${errorMsg}`);
-        console.error("預約失敗：", errorMsg);
+        // 將提交的資料附加到 result 中，用於顯示 recap
+        const resultWithSubmittedData = {
+          ...data,
+          submittedData,
+        };
+        setResult(resultWithSubmittedData);
+        
+        // 重置表單 state
+        setCustomerName("");
+        setPhone("");
+        setPeopleCount(2);
+        setDate("");
+        setSelectedSlotId("");
+        setNotes("");
       }
-    } catch (err: any) {
-      console.error("送出失敗：", err);
-      setErrorMessage(`預約失敗：${err.message || "網路錯誤，請再試一次"}`);
+    } catch (error) {
+      console.error("Create reservation failed", error);
+      setResult({ error: "系統錯誤，請稍後再試。" });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
+  }
+
+  // 格式化日期顯示（YYYY-MM-DD -> YYYY/MM/DD）
+  function formatDateForDisplay(dateStr: string): string {
+    return dateStr.replace(/-/g, "/");
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto">
-        {/* 頁面標題 */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">餐廳預約</h1>
-          <p className="text-lg text-gray-600">
-            請填寫以下資訊，我們將為您安排最適合的用餐時段
-          </p>
+    <div style={{ maxWidth: 640, margin: "20px auto", padding: "0 16px" }}>
+      <h1 style={{ fontSize: "20px", fontWeight: 700, marginBottom: "16px" }}>
+        早午餐預約
+      </h1>
+      <p style={{ marginBottom: "24px", fontSize: "14px" }}>
+        請填寫以下資料，我們會為您建立預約與日曆行程。
+      </p>
+
+      <form onSubmit={handleSubmit} style={{ display: "grid", gap: "12px" }}>
+        <div>
+          <label style={{ fontSize: "14px", display: "block" }}>
+            姓名 *
+            <input
+              type="text"
+              name="customerName"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              required
+              style={{ width: "100%", padding: "8px", marginTop: "4px", fontSize: "14px", boxSizing: "border-box" }}
+            />
+          </label>
         </div>
 
-        {/* 成功訊息 */}
-        {successMessage && (
-          <div className="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
-            <p className="font-semibold">✓ {successMessage}</p>
-          </div>
-        )}
-
-        {/* 錯誤訊息 */}
-        {errorMessage && (
-          <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-            <p className="font-semibold">✗ {errorMessage}</p>
-          </div>
-        )}
-
-        {/* 表單卡片 */}
-        <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* 姓名 */}
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                姓名 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                id="name"
-                name="name"
-                required
-                value={formData.name}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition"
-                placeholder="請輸入您的姓名"
-              />
-            </div>
-
-            {/* 電話 */}
-            <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
-                電話 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="tel"
-                id="phone"
-                name="phone"
-                required
-                value={formData.phone}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition"
-                placeholder="0912-345-678"
-              />
-            </div>
-
-            {/* 日期 + 時段 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div>
-                <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-2">
-                  日期 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  id="date"
-                  name="date"
-                  required
-                  value={formData.date}
-                  onChange={handleChange}
-                  min={new Date().toISOString().split("T")[0]}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="time" className="block text-sm font-medium text-gray-700 mb-2">
-                  時段 <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="time"
-                  name="time"
-                  required
-                  value={formData.time}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition bg-white"
-                >
-                  <option value="">請選擇時段</option>
-                  {timeSlots.map((slot) => (
-                    <option key={slot.value} value={slot.value}>
-                      {slot.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* 人數 */}
-            <div>
-              <label htmlFor="people" className="block text-sm font-medium text-gray-700 mb-2">
-                人數 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                id="people"
-                name="people"
-                required
-                min="1"
-                value={formData.people}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition"
-              />
-            </div>
-
-            {/* 備註 */}
-            <div>
-              <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-2">
-                特殊需求/備註
-              </label>
-              <textarea
-                id="notes"
-                name="notes"
-                value={formData.notes}
-                onChange={handleChange}
-                rows={4}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition resize-none"
-                placeholder="如有特殊需求或備註，請在此填寫（選填）"
-              />
-            </div>
-
-            {/* 按鈕 */}
-            <div className="flex flex-col sm:flex-row gap-4 pt-4">
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="flex-1 px-6 py-3 bg-amber-600 text-white font-semibold rounded-lg shadow-lg hover:bg-amber-700 transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-              >
-                {isLoading ? "提交中..." : "提交預約"}
-              </button>
-              <Link
-                href="/"
-                className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 text-center transition-colors"
-              >
-                返回首頁
-              </Link>
-            </div>
-          </form>
+        <div>
+          <label style={{ fontSize: "14px", display: "block" }}>
+            電話 *
+            <input
+              type="tel"
+              name="phone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              required
+              style={{ width: "100%", padding: "8px", marginTop: "4px", fontSize: "14px", boxSizing: "border-box" }}
+            />
+          </label>
         </div>
 
-        <div className="mt-6 text-center text-sm text-gray-500">
-          <p>我們會在收到您的預約後，盡快與您確認用餐時間。</p>
+        <div>
+          <label style={{ fontSize: "14px", display: "block" }}>
+            人數 *
+            <select
+              name="peopleCount"
+              value={peopleCount}
+              onChange={(e) => setPeopleCount(Number(e.target.value))}
+              required
+              style={{ width: "100%", padding: "8px", marginTop: "4px", fontSize: "14px", boxSizing: "border-box" }}
+            >
+              {Array.from({ length: 9 }, (_, i) => i + 1).map((num) => (
+                <option key={num} value={num}>
+                  {num} 人
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
-      </div>
+
+        <div>
+          <label style={{ fontSize: "14px", display: "block" }}>
+            用餐日期 *
+            <input
+              type="date"
+              name="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              min={today}
+              required
+              style={{ width: "100%", padding: "8px", marginTop: "4px", fontSize: "14px", boxSizing: "border-box" }}
+            />
+          </label>
+        </div>
+
+        <div>
+          <label style={{ fontSize: "14px", display: "block" }}>
+            用餐時段 *
+            <select
+              name="selectedSlotId"
+              value={selectedSlotId}
+              onChange={(e) => setSelectedSlotId(e.target.value)}
+              required
+              style={{ width: "100%", padding: "8px", marginTop: "4px", fontSize: "14px", boxSizing: "border-box" }}
+            >
+              <option value="">請選擇用餐時段</option>
+              {TIME_SLOTS.map((slot) => (
+                <option key={slot.id} value={slot.id}>
+                  {slot.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div>
+          <label style={{ fontSize: "14px", display: "block" }}>
+            備註
+            <textarea
+              name="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              style={{ width: "100%", padding: "8px", marginTop: "4px", fontSize: "14px", boxSizing: "border-box" }}
+            />
+          </label>
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          style={{
+            marginTop: "12px",
+            padding: "12px 16px",
+            backgroundColor: "#f97316",
+            color: "#fff",
+            border: "none",
+            borderRadius: "4px",
+            cursor: loading ? "default" : "pointer",
+            fontSize: "16px",
+            width: "100%",
+            fontWeight: 600,
+          }}
+        >
+          {loading ? "送出中..." : "送出預約"}
+        </button>
+      </form>
+
+      {result && "error" in result && (
+        <div style={{ marginTop: "16px", color: "red", fontSize: "14px" }}>
+          {result.error}
+        </div>
+      )}
+
+      {result && "message" in result && (
+        <div style={{ marginTop: "16px", color: "green", fontSize: "14px" }}>
+          <p>{result.message}</p>
+          {result.reservation && (
+            <>
+              <p style={{ marginTop: "8px" }}>預約編號：{result.reservation.id}</p>
+              {/* 成功 Recap：顯示日期、時段、人數、姓名 */}
+              {result.submittedData && (() => {
+                const { date: submittedDate, selectedSlotId: submittedSlotId, peopleCount: submittedPeopleCount, customerName: submittedCustomerName } = result.submittedData;
+                const slot = TIME_SLOTS.find((s) => s.id === submittedSlotId);
+                return (
+                  <p style={{ marginTop: "8px", fontWeight: 600 }}>
+                    您已成功預約 {formatDateForDisplay(submittedDate)} {slot?.label}，{submittedPeopleCount} 人，姓名 {submittedCustomerName}
+                  </p>
+                );
+              })()}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

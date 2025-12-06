@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client-sqlite"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./prisma/prisma/reservation-dev.db"
+}
+
+// ===== 既有 Models =====
+
+model Resource {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  type        String   @default("restaurant")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Reservation {
+  id              String            @id @default(cuid())
+  customerName    String
+  phone           String
+  peopleCount     Int
+  reservedStart   DateTime
+  reservedEnd     DateTime
+  status          ReservationStatus @default(PENDING)
+  calendarEventId String?
+  notes           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+// ===== 客服機器人相關 Models =====
+
+enum ChatRole {
+  USER
+  BOT
+  STAFF
+}
+
+enum ChatStatus {
+  OPEN // 進行中
+  ESCALATED // 已標記需要人工處理
+  CLOSED // 已結案
+}
+
+model SupportTemplate {
+  id        String   @id @default(cuid())
+  title     String // 店長看到的標題，例如「寵物政策回答」
+  prompt    String // 客戶可能會問的關鍵句或問題描述
+  reply     String // 機器人要回的文字（繁體中文）
+  tags      Json // 關鍵字陣列，例如 ["寵物", "狗", "貓"]（SQLite 使用 Json 類型）
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ChatSession {
+  id        String    @id @default(cuid())
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  channel   String    @default("web")
+  userAgent String? // 一定要可為 null，避免建立時必填
+  needHuman Boolean   @default(false)
+
+  messages ChatMessage[]
+}
+
+model ChatMessage {
+  id        String      @id @default(cuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+}
+

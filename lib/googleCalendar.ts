@@ -1,126 +1,102 @@
-import { google } from 'googleapis';
-import path from 'path';
+// lib/googleCalendar.ts
+import { google } from "googleapis";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
-// 設定 Google Auth
-// 優先使用環境變數（適用於 Vercel 部署），否則使用本地檔案（適用於本地開發）
-let authConfig: any;
+const SCOPES = ["https://www.googleapis.com/auth/calendar"];
 
-if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
-  // 從環境變數讀取（Vercel 部署）
+type CreateEventInput = {
+  summary: string;
+  description?: string;
+  startDateTime: string; // ISO，例如 "2025-12-04T21:00:00+08:00"
+  endDateTime: string;   // ISO
+  calendarId?: string;   // 未提供則使用預設早午餐 Calendar
+};
+
+function loadServiceAccountKey() {
+  const keyPath = path.join(
+    process.cwd(),
+    "service-account",
+    "google-calendar-service-account.json",
+  );
+
+  console.log("[GoogleCalendar] 讀取 Service Account 金鑰，keyPath =", keyPath);
+
+  let raw: string;
   try {
-    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
-    authConfig = {
-      credentials: credentials,
-      scopes: ['https://www.googleapis.com/auth/calendar'],
-    };
-    console.log('使用環境變數進行 Google Calendar 認證');
-  } catch (parseError) {
-    console.error('解析 GOOGLE_SERVICE_ACCOUNT_KEY 失敗，回退到 keyFile 方式:', parseError);
-    // 解析失敗時回退到 keyFile
-    authConfig = {
-      keyFile: path.join(process.cwd(), 'service-account.json'),
-      scopes: ['https://www.googleapis.com/auth/calendar'],
-    };
+    raw = fs.readFileSync(keyPath, "utf-8");
+  } catch (error) {
+    console.error(
+      "[GoogleCalendar] 讀取金鑰檔案失敗：",
+      (error as Error)?.message ?? error,
+    );
+    throw new Error(
+      `無法讀取 Service Account 金鑰檔案: ${keyPath}\n` +
+        "請確認檔案存在且目前執行帳號有權限讀取。"
+    );
   }
-} else {
-  // 使用本地檔案（本地開發）
-  authConfig = {
-    keyFile: path.join(process.cwd(), 'service-account.json'),
-    scopes: ['https://www.googleapis.com/auth/calendar'],
+
+  const json = JSON.parse(raw) as {
+    client_email: string;
+    private_key: string;
   };
-  console.log('使用本地 service-account.json 進行 Google Calendar 認證');
+
+  const expectedEmail =
+    "backend-core-user@localbiz-saas-core.iam.gserviceaccount.com";
+
+  if (json.client_email !== expectedEmail) {
+    console.warn(
+      `[GoogleCalendar] 警告：Service Account email 不符預期\n` +
+        `預期: ${expectedEmail}\n` +
+        `實際: ${json.client_email}\n` +
+        "請確認使用正確的 Service Account 金鑰檔案"
+    );
+  }
+
+  return json;
 }
 
-const auth = new google.auth.GoogleAuth(authConfig);
+async function getCalendarClient() {
+  const { client_email, private_key } = loadServiceAccountKey();
 
-// 取得 Calendar API 實例
-const calendar = google.calendar({ version: 'v3', auth });
+  const auth = new google.auth.JWT({
+    email: client_email,
+    key: private_key,
+    scopes: SCOPES,
+  });
 
-/**
- * 解析日期和時段，轉換為 ISO 8601 格式的開始和結束時間
- * @param date 日期字串 (格式: YYYY-MM-DD)
- * @param time 時段字串 (格式: HH:mm-HH:mm，例如: "14:00-17:00")
- * @returns 包含 startTime 和 endTime 的物件（ISO 8601 格式）
- */
-function parseDateTime(date: string, time: string): { startTime: string; endTime: string } {
-  // 處理時間格式：可能是 "14:00-17:00" 或 "14:00 - 17:00"
-  const timeStr = time.replace(/\s+/g, ''); // 移除所有空格
-  const [startStr, endStr] = timeStr.split('-');
-  
-  if (!startStr || !endStr) {
-    throw new Error('時段格式錯誤，應為 "HH:MM-HH:MM" 格式');
-  }
-  
-  const [startHour, startMinute] = startStr.split(':');
-  const [endHour, endMinute] = endStr.split(':');
-  
-  if (!startHour || !startMinute || !endHour || !endMinute) {
-    throw new Error('時段格式錯誤');
-  }
-  
-  // 建立 ISO 8601 格式的日期時間字串（使用台灣時區 UTC+8）
-  const startDateTime = `${date}T${startHour.padStart(2, '0')}:${startMinute.padStart(2, '0')}:00+08:00`;
-  const endDateTime = `${date}T${endHour.padStart(2, '0')}:${endMinute.padStart(2, '0')}:00+08:00`;
-  
-  return { startTime: startDateTime, endTime: endDateTime };
+  await auth.authorize();
+
+  return google.calendar({
+    version: "v3",
+    auth,
+  });
 }
 
-/**
- * 在 Google Calendar 中建立預約事件
- * @param reservation 預約資料物件
- * @returns 建立的日曆事件
- */
-export async function createCalendarEvent(reservation: any) {
-  try {
-    // 從環境變數取得 Calendar ID
-    const calendarId = process.env.GOOGLE_CALENDAR_ID;
-    
-    if (!calendarId) {
-      throw new Error('GOOGLE_CALENDAR_ID 環境變數未設定');
-    }
+export async function createGoogleCalendarEvent(input: CreateEventInput) {
+  const calendar = await getCalendarClient();
 
-    // 解析日期和時段
-    const { startTime, endTime } = parseDateTime(reservation.date, reservation.time);
+  const calendarId =
+    input.calendarId || process.env.GOOGLE_CALENDAR_ID_BRUNCH;
 
-    // 建立事件標題
-    const eventTitle = `[預約] ${reservation.name} (${reservation.people}人)`;
+  if (!calendarId) {
+    console.error("[GoogleCalendar] Missing calendarId");
+    throw new Error("Google Calendar ID not configured");
+  }
 
-    // 建立事件描述
-    const eventDescription = `Phone: ${reservation.phone}\nNotes: ${reservation.notes || '無'}`;
-
-    // 建立日曆事件
-    const event = {
-      summary: eventTitle,
-      description: eventDescription,
+  const res = await calendar.events.insert({
+    calendarId,
+    requestBody: {
+      summary: input.summary,
+      description: input.description ?? "",
       start: {
-        dateTime: startTime,
-        timeZone: 'Asia/Taipei',
+        dateTime: input.startDateTime,
       },
       end: {
-        dateTime: endTime,
-        timeZone: 'Asia/Taipei',
+        dateTime: input.endDateTime,
       },
-    };
+    },
+  });
 
-    console.log('建立 Google Calendar 事件...');
-    console.log('Calendar ID:', calendarId);
-    console.log('事件標題:', eventTitle);
-    console.log('開始時間:', startTime);
-    console.log('結束時間:', endTime);
-
-    const response = await calendar.events.insert({
-      calendarId: calendarId,
-      requestBody: event,
-    });
-
-    console.log('✅ Google Calendar 事件建立成功');
-    console.log('事件 ID:', response.data.id);
-    console.log('事件連結:', response.data.htmlLink);
-
-    return response.data;
-  } catch (error: any) {
-    console.error('❌ 建立 Google Calendar 事件失敗:', error);
-    throw error;
-  }
+  return res.data; // 內含 id, status, htmlLink 等欄位
 }
-

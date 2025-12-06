@@ -1,7 +1,8 @@
 // app/layout.tsx
 import type { Metadata } from "next";
 import "./globals.css";
-import AIChatButton from "@/components/AIChatButton";
+// import AIChatButton from "@/components/AIChatButton"; // 舊的 Gemini 客服 widget，已停用
+import { SupportChatWidget } from "@/components/support/SupportChatWidget";
 
 export const metadata: Metadata = {
   title: "SoloAI 官方網站 | AI 行銷 × 智慧轉型",
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-Hant-TW">
-      <body>
+      <body className="bg-gradient-to-br from-orange-50 via-amber-50 to-orange-100 min-h-screen">
         {/* Navbar 已暫時移除 */}
         <main style={{ minHeight: "70vh" }}>{children}</main>
         <footer
@@ -44,8 +45,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           © {new Date().getFullYear()} SoloAI. All rights reserved.
         </footer>
-        {/* AI 客服聊天組件 */}
-        <AIChatButton />
+        {/* 新的中文客服聊天組件 */}
+        <SupportChatWidget />
+        {/* 舊的 AI 客服聊天組件（已停用） */}
+        {/* <AIChatButton /> */}
       </body>
     </html>
   );
