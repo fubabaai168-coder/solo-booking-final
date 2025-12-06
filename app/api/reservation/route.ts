@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ReservationLog, ReservationLogSchema } from '@/app/types/reservationLog';
 import { prisma } from '@/lib/prisma';
-import { createCalendarEvent } from '@/lib/googleCalendar';
+import { createGoogleCalendarEvent } from "@/lib/googleCalendar";
 
 export const runtime = 'nodejs';
 
@@ -216,38 +216,93 @@ export async function POST(req: NextRequest) {
       console.log('開始寫入資料庫...');
       console.log('Resource ID:', resourceId);
       
+      // === 解析時間格式並轉換為 DateTime ===
+      // 解析時間格式：time 格式為 "HH:MM-HH:MM" 或 "HH:MM - HH:MM"
+      const timeStr = frontendPayload.time.replace(/\s+/g, ""); // 移除所有空格
+      const [startStr, endStr] = timeStr.split("-");
+      
+      if (!startStr || !endStr) {
+        return NextResponse.json(
+          { success: false, message: '時段格式錯誤，應為 "HH:MM-HH:MM" 格式' },
+          { status: 400 }
+        );
+      }
+      
+      const [startHour, startMinute] = startStr.split(":");
+      const [endHour, endMinute] = endStr.split(":");
+      
+      if (!startHour || !startMinute || !endHour || !endMinute) {
+        return NextResponse.json(
+          { success: false, message: "時段格式錯誤" },
+          { status: 400 }
+        );
+      }
+      
+      // 轉換為 ISO 8601 格式（台北時間 UTC+8）
+      const startDateTimeISO = `${frontendPayload.date}T${startHour.padStart(2, "0")}:${startMinute.padStart(2, "0")}:00+08:00`;
+      const endDateTimeISO = `${frontendPayload.date}T${endHour.padStart(2, "0")}:${endMinute.padStart(2, "0")}:00+08:00`;
+      
+      // 轉換為 Date 物件供 Prisma 使用
+      const reservedStart = new Date(startDateTimeISO);
+      const reservedEnd = new Date(endDateTimeISO);
+      
+      // === 先同步到 Google Calendar 以取得 calendarEventId ===
+      let calendarEventId: string | undefined = undefined;
+      try {
+        console.log('開始同步到 Google Calendar...');
+        
+        // 組合 summary 和 description
+        const summary = `${frontendPayload.name} - ${frontendPayload.people || 1}人預約`;
+        const description = [
+          `姓名：${frontendPayload.name}`,
+          `電話：${frontendPayload.phone}`,
+          `人數：${frontendPayload.people || 1} 人`,
+          frontendPayload.notes ? `備註：${frontendPayload.notes}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+        
+        console.log("⏳ 準備建立 Google Calendar 事件", { summary, description, startDateTimeISO, endDateTimeISO });
+        
+        const calendarEvent = await createGoogleCalendarEvent({
+          summary,
+          description,
+          startDateTime: startDateTimeISO,
+          endDateTime: endDateTimeISO,
+        });
+        
+        console.log("✅ Google Calendar 回傳結果：", calendarEvent);
+        
+        calendarEventId = calendarEvent.id || undefined;
+        console.log('✅ Google Calendar 同步成功，Event ID:', calendarEventId);
+      } catch (calendarError: any) {
+        // 日曆同步失敗不影響預約成功，只記錄錯誤
+        console.error('⚠️ Google Calendar 同步失敗（預約仍會保存）:', calendarError.message);
+        console.error('錯誤詳情:', calendarError);
+      }
+      
       // 使用 Prisma 直接寫入資料庫
       const reservation = await prisma.reservation.create({
         data: {
-          resourceId: resourceId,
-          name: frontendPayload.name,
+          customerName: frontendPayload.name,
           phone: frontendPayload.phone,
-          date: frontendPayload.date,
-          time: frontendPayload.time,
-          people: frontendPayload.people || 1,
+          peopleCount: frontendPayload.people || 1,
+          reservedStart,
+          reservedEnd,
+          calendarEventId,
+          notes: frontendPayload.notes || null,
         }
       });
 
       console.log('✅ 預約已成功寫入資料庫');
       console.log('Reservation ID:', reservation.id);
-      
-      // === 同步到 Google Calendar ===
-      try {
-        console.log('開始同步到 Google Calendar...');
-        await createCalendarEvent({
-          name: reservation.name,
-          phone: reservation.phone,
-          date: reservation.date,
-          time: reservation.time,
-          people: reservation.people,
-          notes: frontendPayload.notes || '',
-        });
-        console.log('✅ Google Calendar 同步成功');
-      } catch (calendarError: any) {
-        // 日曆同步失敗不影響預約成功，只記錄錯誤
-        console.error('⚠️ Google Calendar 同步失敗（預約仍已保存）:', calendarError.message);
-        console.error('錯誤詳情:', calendarError);
+      if (calendarEventId) {
+        console.log('Calendar Event ID:', calendarEventId);
       }
+      
+      // 格式化回傳資料（將 DateTime 轉回前端格式）
+      const responseDate = frontendPayload.date;
+      const responseTime = frontendPayload.time;
       
       return NextResponse.json(
         { 
@@ -255,11 +310,12 @@ export async function POST(req: NextRequest) {
           message: '預約成功！',
           data: {
             id: reservation.id,
-            name: reservation.name,
+            name: reservation.customerName,
             phone: reservation.phone,
-            date: reservation.date,
-            time: reservation.time,
-            people: reservation.people,
+            date: responseDate,
+            time: responseTime,
+            people: reservation.peopleCount,
+            calendarEventId: reservation.calendarEventId,
             createdAt: reservation.createdAt,
           }
         },

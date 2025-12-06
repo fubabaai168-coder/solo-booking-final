@@ -23,11 +23,28 @@ async function checkReservations() {
       
       console.log('\n=== 摘要 ===');
       reservations.forEach((reservation, index) => {
-        console.log(`${index + 1}. ${reservation.name} - ${reservation.phone}`);
-        console.log(`   日期：${reservation.date} ${reservation.time}`);
-        console.log(`   人數：${reservation.people}`);
+        // 格式化日期時間
+        const startDate = reservation.reservedStart.toISOString().split('T')[0];
+        const startTime = reservation.reservedStart.toLocaleTimeString('zh-TW', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          timeZone: 'Asia/Taipei'
+        });
+        const endTime = reservation.reservedEnd.toLocaleTimeString('zh-TW', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          timeZone: 'Asia/Taipei'
+        });
+        const timeRange = `${startTime}-${endTime}`;
+        
+        console.log(`${index + 1}. ${reservation.customerName} - ${reservation.phone}`);
+        console.log(`   日期：${startDate} ${timeRange}`);
+        console.log(`   人數：${reservation.peopleCount}`);
         console.log(`   建立時間：${reservation.createdAt}`);
         console.log(`   ID：${reservation.id}`);
+        if (reservation.calendarEventId) {
+          console.log(`   Google Calendar Event ID：${reservation.calendarEventId}`);
+        }
         console.log('');
       });
     }

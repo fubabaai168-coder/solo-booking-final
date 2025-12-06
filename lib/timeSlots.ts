@@ -6,10 +6,8 @@ export const TIME_SLOTS = [
   { id: "NOON_2", label: "13:30–15:00", start: "13:30", end: "15:00" },
 ] as const;
 
-export type TimeSlotId = typeof TIME_SLOTS[number]["id"];
-
-// 導出 TimeSlot 型別，用於接收 readonly 陣列
 export type TimeSlot = (typeof TIME_SLOTS)[number];
+export type TimeSlotId = TimeSlot["id"];
 
 
 

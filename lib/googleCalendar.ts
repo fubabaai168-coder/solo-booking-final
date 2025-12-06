@@ -100,3 +100,56 @@ export async function createGoogleCalendarEvent(input: CreateEventInput) {
 
   return res.data; // 內含 id, status, htmlLink 等欄位
 }
+
+// 匯出 createCalendarEvent 作為 createGoogleCalendarEvent 的別名
+export const createCalendarEvent = createGoogleCalendarEvent;
+
+// 包裝函式：接收預約格式的參數，轉換後呼叫 createGoogleCalendarEvent
+type CreateCalendarEventInput = {
+  name: string;
+  phone: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM-HH:MM 格式
+  people: number;
+  notes?: string;
+};
+
+export async function createCalendarEventFromReservation(input: CreateCalendarEventInput) {
+  // 解析時間格式：time 格式為 "HH:MM-HH:MM" 或 "HH:MM - HH:MM"
+  const timeStr = input.time.replace(/\s+/g, ""); // 移除所有空格
+  const [startStr, endStr] = timeStr.split("-");
+
+  if (!startStr || !endStr) {
+    throw new Error('時段格式錯誤，應為 "HH:MM-HH:MM" 格式');
+  }
+
+  const [startHour, startMinute] = startStr.split(":");
+  const [endHour, endMinute] = endStr.split(":");
+
+  if (!startHour || !startMinute || !endHour || !endMinute) {
+    throw new Error("時段格式錯誤");
+  }
+
+  // 轉換為 ISO 8601 格式（台北時間 UTC+8）
+  const startDateTime = `${input.date}T${startHour.padStart(2, "0")}:${startMinute.padStart(2, "0")}:00+08:00`;
+  const endDateTime = `${input.date}T${endHour.padStart(2, "0")}:${endMinute.padStart(2, "0")}:00+08:00`;
+
+  // 組合 summary 和 description
+  const summary = `${input.name} - ${input.people}人預約`;
+  const description = [
+    `姓名：${input.name}`,
+    `電話：${input.phone}`,
+    `人數：${input.people} 人`,
+    input.notes ? `備註：${input.notes}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  // 呼叫底層函式
+  return createGoogleCalendarEvent({
+    summary,
+    description,
+    startDateTime,
+    endDateTime,
+  });
+}
