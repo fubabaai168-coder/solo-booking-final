@@ -3,13 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import type { TableUsage } from "@/lib/seatConfig";
-
-interface TimeSlot {
-  id: string;
-  label: string;
-  start: string;
-  end: string;
-}
+import type { TimeSlot } from "@/lib/timeSlots";
 
 interface Reservation {
   id: string;
@@ -22,7 +16,7 @@ interface Reservation {
 }
 
 interface BookingDashboardClientProps {
-  timeSlots: TimeSlot[];
+  timeSlots: readonly TimeSlot[];
   selectedDate: string;
   selectedSlotId: string;
   reservations: Reservation[];

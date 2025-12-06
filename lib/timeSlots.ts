@@ -8,6 +8,9 @@ export const TIME_SLOTS = [
 
 export type TimeSlotId = typeof TIME_SLOTS[number]["id"];
 
+// 導出 TimeSlot 型別，用於接收 readonly 陣列
+export type TimeSlot = (typeof TIME_SLOTS)[number];
+
 
 
 
