@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createCalendarEventFromReservation } from "@/lib/googleCalendar";
+import { createGoogleCalendarEvent } from "@/lib/googleCalendar";
 
 export const runtime = "nodejs";
 
@@ -63,13 +63,21 @@ export async function POST(req: NextRequest) {
 
     // 嘗試建立 Google 日曆事件
     try {
-      const calendarEvent = await createCalendarEventFromReservation({
-        name,
-        phone,
-        date,
-        time,
-        people,
-        notes: note,
+      const summary = `${name} - ${people}人預約`;
+      const description = [
+        `姓名：${name}`,
+        `電話：${phone || ""}`,
+        `人數：${people} 人`,
+        note ? `備註：${note}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const calendarEvent = await createGoogleCalendarEvent({
+        summary,
+        description,
+        startDateTime: reservedStart.toISOString(),
+        endDateTime: reservedEnd.toISOString(),
       });
 
       // 更新資料庫寫入 calendarEventId
@@ -80,8 +88,15 @@ export async function POST(req: NextRequest) {
         });
       }
     } catch (calendarError: any) {
-      console.error("⚠️Google日曆同步失敗（預訂仍已儲存）:", calendarError.message);
-      console.error("錯誤詳情:", calendarError);
+      // 日曆同步失敗不影響預約成功，只記錄錯誤
+      // 使用與 lib/googleCalendar.ts 一致的錯誤 log 格式
+      console.error("[GCalendar][LegacyRoute][CreateEvent][Error]", {
+        reservationId: reservation.id,
+        errorCode: calendarError?.code,
+        errorMessage:
+          calendarError?.errors?.[0]?.message || calendarError?.message || "Unknown error",
+        rawErrors: calendarError?.errors,
+      });
     }
 
     return NextResponse.json(
