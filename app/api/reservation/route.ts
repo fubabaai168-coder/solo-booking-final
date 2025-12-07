@@ -216,7 +216,6 @@ export async function POST(req: NextRequest) {
       console.log('開始寫入資料庫...');
       console.log('Resource ID:', resourceId);
       
-<<<<<<< HEAD
       // === 解析時間格式並轉換為 DateTime ===
       // 解析時間格式：time 格式為 "HH:MM-HH:MM" 或 "HH:MM - HH:MM"
       const timeStr = frontendPayload.time.replace(/\s+/g, ""); // 移除所有空格
@@ -300,11 +299,6 @@ export async function POST(req: NextRequest) {
       console.log('Reservation ID:', reservation.id);
       if (calendarEventId) {
         console.log('Calendar Event ID:', calendarEventId);
-      } catch (calendarError: any) {
-        // 日曆同步失敗不影響預約成功，只記錄錯誤
-        console.error('⚠️ Google Calendar 同步失敗（預約仍已保存）:', calendarError.message);
-        console.error('錯誤詳情:', calendarError);
->>>>>>> 0459d01c0e7481b4bd4dcd0915d2a67fd8d3fba1
       }
       
       // 格式化回傳資料（將 DateTime 轉回前端格式）
