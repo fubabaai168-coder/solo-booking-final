@@ -187,10 +187,12 @@ export async function POST(request: NextRequest) {
       });
     } catch (calendarError: any) {
       // 日曆同步失敗不影響預約成功，只記錄錯誤
-      console.error("[GCalendar][Route][Error]", {
+      // 使用與 lib/googleCalendar.ts 一致的錯誤 log 格式
+      console.error("[GCalendar][CreateEvent][Error]", {
         reservationId: newReservation.id,
-        message: calendarError?.message,
-        code: calendarError?.code,
+        errorCode: calendarError?.code,
+        errorMessage: calendarError?.errors?.[0]?.message || calendarError?.message,
+        rawErrors: calendarError?.errors,
       });
     }
 
