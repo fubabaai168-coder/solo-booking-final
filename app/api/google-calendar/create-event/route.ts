@@ -13,7 +13,6 @@ export async function POST(req: NextRequest) {
       "由 SoloAI 後端透過 Google Calendar Service Account 建立";
     const startDateTime: string = body.startDateTime;
     const endDateTime: string = body.endDateTime;
-    const calendarId: string | undefined = body.calendarId;
 
     if (!startDateTime || !endDateTime) {
       return NextResponse.json(
@@ -27,7 +26,6 @@ export async function POST(req: NextRequest) {
       description,
       startDateTime,
       endDateTime,
-      calendarId,
     });
 
     return NextResponse.json(
