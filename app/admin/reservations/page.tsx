@@ -119,9 +119,9 @@ export default async function ReservationsPage({ searchParams }: PageProps) {
 
   const statusOptions: { value: StatusFilter; label: string }[] = [
     { value: "all", label: "全部" },
-    { value: "PENDING", label: "PENDING" },
-    { value: "CONFIRMED", label: "CONFIRMED" },
-    { value: "CANCELLED", label: "CANCELLED" },
+    { value: "PENDING", label: "待處理" },
+    { value: "CONFIRMED", label: "已確認" },
+    { value: "CANCELLED", label: "已取消" },
   ];
 
   return (

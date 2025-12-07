@@ -135,7 +135,7 @@ export function SupportChatWidget() {
       const welcomeMessage: ChatMessage = {
         id: "welcome",
         role: "bot",
-        text: "您好～我是 SoloAI Brunch 的 AI 客服。\n\n可以幫您：\n1. 說明營業時間、店址與預約規則\n2. 協助安排早午餐預約\n\n請問你是想「預約用餐」，還是先「詢問其他問題」呢？",
+        text: "您好～我是微光暖食的 AI 客服。\n\n可以幫您：\n1. 說明營業時間、店址與預約規則\n2. 協助安排早午餐預約\n\n請問你是想「預約用餐」，還是先「詢問其他問題」呢？",
       };
       appendMessage(welcomeMessage);
       setStep("askIntent");
@@ -898,8 +898,7 @@ export function SupportChatWidget() {
           {/* Header */}
           <div className="bg-gradient-to-r from-orange-400 to-orange-500 text-white p-4 flex justify-between items-center gap-2">
             <div className="flex flex-col">
-              <span className="font-semibold text-lg">AI 客服</span>
-              <span className="text-xs opacity-90">SoloAI Brunch</span>
+              <span className="font-semibold text-lg">微光暖食客服</span>
             </div>
 
             {/* 主切換按鈕：問問題 ↔ 預約 */}
