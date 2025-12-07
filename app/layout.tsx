@@ -10,9 +10,9 @@ import { AnalyticsTracker } from "./_components/AnalyticsTracker";
 const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
 export const metadata: Metadata = {
-  title: "SoloAI 官方網站 | AI 行銷 × 智慧轉型",
+  title: "微光暖食｜AI 智能預約系統",
   description:
-    "協助在地商家用 AI 提升行銷、客服、網站與曝光力，打造『曝光 → 互動 → 收件 → 轉換』閉環。",
+    "預約管理 × 座位儀表板 × Google 日曆同步。微光暖食專屬的智能預約系統。",
   keywords: [
     "AI 行銷",
     "在地商家",
@@ -22,9 +22,9 @@ export const metadata: Metadata = {
     "智慧轉型",
   ],
   openGraph: {
-    title: "SoloAI 官方網站",
+    title: "微光暖食｜AI 智能預約系統",
     description:
-      "AI 行銷 × 智慧轉型，助你業績起飛。提供 AI 行銷代管、網站架設、客服與預約系統服務。",
+      "預約管理 × 座位儀表板 × Google 日曆同步。微光暖食專屬的智能預約系統。",
     url: "https://soloai.shop",
     siteName: "SoloAI",
     images: [{ url: "/og-image.jpg" }],
