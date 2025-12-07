@@ -118,6 +118,17 @@ export async function createGoogleCalendarEvent(input: CreateEventInput) {
   // 修正 Vercel 將換行存成 '\n' 字串的問題
   const googlePrivateKey = rawGooglePrivateKey.replace(/\\n/g, "\n");
 
+  // 除錯 log：在建立 JWT client 之前，印出 env 內容（不印出完整 key）
+  console.log("[GCalendar][Debug-2025-12-07]", {
+    hasServiceAccountEmail: !!googleServiceAccountEmail,
+    serviceAccountEmail: googleServiceAccountEmail,
+    hasRawPrivateKey: !!rawGooglePrivateKey,
+    rawPrivateKeyLength: rawGooglePrivateKey ? rawGooglePrivateKey.length : 0,
+    hasGooglePrivateKey: !!googlePrivateKey,
+    googlePrivateKeyLength: googlePrivateKey ? googlePrivateKey.length : 0,
+    calendarId: googleCalendarId,
+  });
+
   console.log("[GCalendar][Lib][Config]", {
     hasServiceAccountEmail: !!googleServiceAccountEmail,
     hasPrivateKey: !!rawGooglePrivateKey,
