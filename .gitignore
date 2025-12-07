@@ -1,52 +1,85 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ============================
+# 基本設定
+# ============================
 
-# dependencies
+# Node dependencies
 /node_modules
 /.pnp
 .pnp.*
+
+# Yarn v2+
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
+# ============================
+# Build / Output
+# ============================
 
-# next.js
+# Next.js build outputs
 /.next/
 /out/
 
-# production
+# Production builds
 /build
 
-# misc
-.DS_Store
-*.pem
+# Prisma client (generated)
+prisma/generated/
+lib/generated/prisma
 
-# debug
+# Typescript cache
+*.tsbuildinfo
+next-env.d.ts
+
+# ============================
+# Logs
+# ============================
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# Coverage output
+/coverage
 
-# Google service account keys (security)
-localbizfinder-*.json.json
+# ============================
+# Environment files
+# ============================
+
+# All env files (do NOT upload secrets)
+.env
+.env.*
+!.env.example   # keep example
+
+# ============================
+# OS / Tools / Misc
+# ============================
+.DS_Store
+*.pem
+
+# Vercel
+.vercel
+
+# ============================
+# Google / Service Account
+# ============================
+
+# 強制忽略所有 service account key
+service-account/*.json
+*.serviceaccount.json
 *.json.json
+
+# 允許部分 JSON（必要 config）
 !package.json
 !package-lock.json
 !tsconfig.json
-service-account/*.json
-service-account/google-calendar-service-account.json
 
-# vercel
-.vercel
+# ============================
+# Custom ignores (專案特別)
+# ============================
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
+# 任何可能被自動生成的 prisma client
 /lib/generated/prisma
+
