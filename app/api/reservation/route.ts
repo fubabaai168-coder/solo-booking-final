@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createGoogleCalendarEvent } from "@/lib/google";
+import { createCalendarEventFromReservation } from "@/lib/googleCalendar";
 
 export const runtime = "nodejs";
+
+function buildTaipeiDate(dateStr: string, timeStr: string) {
+  // dateStr: "2025-12-07"
+  // timeStr: "09:00" / "10:30" 等
+  return new Date(`${dateStr}T${timeStr}:00+08:00`);
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,36 +23,62 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 新增預約到資料庫
+    // 解析時間格式：time 格式為 "HH:MM-HH:MM" 或 "HH:MM - HH:MM"
+    const timeStr = time.replace(/\s+/g, ""); // 移除所有空格
+    const [startStr, endStr] = timeStr.split("-");
+
+    if (!startStr || !endStr) {
+      return NextResponse.json(
+        { success: false, message: '時段格式錯誤，應為 "HH:MM-HH:MM" 格式' },
+        { status: 400 }
+      );
+    }
+
+    const [startHour, startMinute] = startStr.split(":");
+    const [endHour, endMinute] = endStr.split(":");
+
+    if (!startHour || !startMinute || !endHour || !endMinute) {
+      return NextResponse.json(
+        { success: false, message: "時段格式錯誤" },
+        { status: 400 }
+      );
+    }
+
+    // 轉換為台北時間 (UTC+8) 的 Date 物件
+    const reservedStart = buildTaipeiDate(date, `${startHour}:${startMinute}`);
+    const reservedEnd = buildTaipeiDate(date, `${endHour}:${endMinute}`);
+
+    // 新增預約到資料庫（使用符合 Prisma schema 的欄位）
     const reservation = await prisma.reservation.create({
       data: {
-        name,
-        email,
-        phone,
-        date,
-        time,
-        people,
-        note,
+        customerName: name,
+        phone: phone || "",
+        peopleCount: Number(people) || 1,
+        reservedStart,
+        reservedEnd,
+        notes: note || null,
+        status: "PENDING",
       },
     });
 
     // 嘗試建立 Google 日曆事件
     try {
-      const calendarEventId = await createGoogleCalendarEvent({
+      const calendarEvent = await createCalendarEventFromReservation({
         name,
-        email,
         phone,
         date,
         time,
         people,
-        note,
+        notes: note,
       });
 
       // 更新資料庫寫入 calendarEventId
-      await prisma.reservation.update({
-        where: { id: reservation.id },
-        data: { calendarEventId },
-      });
+      if (calendarEvent?.id) {
+        await prisma.reservation.update({
+          where: { id: reservation.id },
+          data: { calendarEventId: calendarEvent.id },
+        });
+      }
     } catch (calendarError: any) {
       console.error("⚠️Google日曆同步失敗（預訂仍已儲存）:", calendarError.message);
       console.error("錯誤詳情:", calendarError);
