@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TIME_SLOTS } from "@/lib/timeSlots";
+import { createGoogleCalendarEvent } from "@/lib/googleCalendar";
 
 // =======================================================================
 // 類型定義
@@ -146,7 +147,54 @@ export async function POST(request: NextRequest) {
 
     console.log('[reservations/create] 預約建立成功:', { id: newReservation.id });
 
-    // 9. 成功回應
+    // 9. 同步到 Google Calendar
+    try {
+      console.log("[GCalendar][Route][BeforeCall]", {
+        reservationId: newReservation.id,
+        customerName: newReservation.customerName,
+        reservedStart: newReservation.reservedStart.toISOString(),
+        reservedEnd: newReservation.reservedEnd.toISOString(),
+      });
+
+      const summary = `${newReservation.customerName} - ${newReservation.peopleCount}人預約`;
+      const description = [
+        `姓名：${newReservation.customerName}`,
+        `電話：${newReservation.phone}`,
+        `人數：${newReservation.peopleCount} 人`,
+        newReservation.notes ? `備註：${newReservation.notes}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const calendarEvent = await createGoogleCalendarEvent({
+        summary,
+        description,
+        startDateTime: newReservation.reservedStart.toISOString(),
+        endDateTime: newReservation.reservedEnd.toISOString(),
+      });
+
+      // 更新資料庫寫入 calendarEventId
+      if (calendarEvent?.id) {
+        await prisma.reservation.update({
+          where: { id: newReservation.id },
+          data: { calendarEventId: calendarEvent.id },
+        });
+      }
+
+      console.log("[GCalendar][Route][AfterCall]", {
+        reservationId: newReservation.id,
+        calendarEventId: calendarEvent?.id,
+      });
+    } catch (calendarError: any) {
+      // 日曆同步失敗不影響預約成功，只記錄錯誤
+      console.error("[GCalendar][Route][Error]", {
+        reservationId: newReservation.id,
+        message: calendarError?.message,
+        code: calendarError?.code,
+      });
+    }
+
+    // 10. 成功回應
     return NextResponse.json(
       {
         message: "預約建立成功",

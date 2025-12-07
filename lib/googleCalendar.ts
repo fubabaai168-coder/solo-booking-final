@@ -93,28 +93,33 @@ async function getCalendarClient() {
 }
 
 export async function createGoogleCalendarEvent(input: CreateEventInput) {
+  // === 函式開始 log ===
+  console.log("[GCalendar][Lib][CreateEvent][Start]", {
+    summary: input.summary,
+    start: input.startDateTime,
+    end: input.endDateTime,
+    calendarId: input.calendarId || "使用預設",
+  });
+
   // === 環境變數檢查與 log ===
   const googleServiceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const rawGooglePrivateKey = process.env.GOOGLE_PRIVATE_KEY || "";
   const googleCalendarId = process.env.GOOGLE_CALENDAR_ID;
-  const googleCalendarIdBrunch = process.env.GOOGLE_CALENDAR_ID_BRUNCH;
 
   // 修正 Vercel 將換行存成 '\n' 字串的問題
   const googlePrivateKey = rawGooglePrivateKey.replace(/\\n/g, "\n");
 
-  console.log("[GCalendar][Config]", {
+  console.log("[GCalendar][Lib][Config]", {
     hasServiceAccountEmail: !!googleServiceAccountEmail,
     hasPrivateKey: !!rawGooglePrivateKey,
     hasCalendarId: !!googleCalendarId,
-    hasCalendarIdBrunch: !!googleCalendarIdBrunch,
   });
 
-  if (!googleServiceAccountEmail || !rawGooglePrivateKey || (!googleCalendarId && !googleCalendarIdBrunch)) {
-    console.error("[GCalendar][Config][MissingEnv]", {
+  if (!googleServiceAccountEmail || !rawGooglePrivateKey || !googleCalendarId) {
+    console.error("[GCalendar][Lib][Config][MissingEnv]", {
       hasServiceAccountEmail: !!googleServiceAccountEmail,
       hasPrivateKey: !!rawGooglePrivateKey,
       hasCalendarId: !!googleCalendarId,
-      hasCalendarIdBrunch: !!googleCalendarIdBrunch,
     });
     // 保持原本行為：如果目前程式是「只印錯誤但不中止預約」，就不要 throw，只是 log
     // 如果原本有特定錯誤處理邏輯，請依原邏輯延續。
@@ -123,15 +128,15 @@ export async function createGoogleCalendarEvent(input: CreateEventInput) {
   const calendar = await getCalendarClient();
 
   const calendarId =
-    input.calendarId || process.env.GOOGLE_CALENDAR_ID_BRUNCH;
+    input.calendarId || process.env.GOOGLE_CALENDAR_ID_BRUNCH || googleCalendarId;
 
   if (!calendarId) {
-    console.error("[GCalendar][Config][MissingCalendarId]");
+    console.error("[GCalendar][Lib][Config][MissingCalendarId]");
     throw new Error("Google Calendar ID not configured");
   }
 
   try {
-    console.log("[GCalendar][CreateEvent][Start]", {
+    console.log("[GCalendar][Lib][CreateEvent][Request]", {
       calendarId: calendarId,
       summary: input.summary,
       start: input.startDateTime,
@@ -152,14 +157,14 @@ export async function createGoogleCalendarEvent(input: CreateEventInput) {
       },
     });
 
-    console.log("[GCalendar][CreateEvent][Success]", {
+    console.log("[GCalendar][Lib][CreateEvent][Success]", {
       eventId: res.data.id,
       status: res.status,
     });
 
     return res.data; // 內含 id, status, htmlLink 等欄位
   } catch (error: any) {
-    console.error("[GCalendar][CreateEvent][Error]", {
+    console.error("[GCalendar][Lib][CreateEvent][Error]", {
       message: error?.message,
       code: error?.code,
       errors: error?.errors,
@@ -223,4 +228,4 @@ export async function createCalendarEventFromReservation(input: CreateCalendarEv
   });
 }
 
-// [GCalendar] logging & env diagnostics added for debugging
+// [GCalendar] lib logging & env diagnostics added
