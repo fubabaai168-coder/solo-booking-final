@@ -115,35 +115,16 @@ export default async function BookingDashboardPage({
   });
 
   return (
-    <>
-      {/* DEBUG: reservations snapshot */}
-      <div className="mt-4 text-xs text-gray-500 border border-dashed border-gray-400 p-2 rounded">
-        <div>DEBUG - reservations count: {reservations.length}</div>
-        <pre className="whitespace-pre-wrap">
-          {JSON.stringify(
-            reservations.slice(0, 3).map((r) => ({
-              id: r.id,
-              status: r.status,
-              reservedStart: r.reservedStart,
-              reservedEnd: r.reservedEnd,
-            })),
-            null,
-            2
-          )}
-        </pre>
-      </div>
-
-      <BookingDashboardClient
-        timeSlots={TIME_SLOTS}
-        selectedDate={selectedDate}
-        selectedSlotId={selectedSlotId}
-        reservations={reservations}
-        totalPeople={totalPeople}
-        totalCapacity={TOTAL_CAPACITY}
-        percentage={percentage}
-        selectedSlotLabel={selectedSlot?.label || ""}
-        tableUsages={tableUsages}
-      />
-    </>
+    <BookingDashboardClient
+      timeSlots={TIME_SLOTS}
+      selectedDate={selectedDate}
+      selectedSlotId={selectedSlotId}
+      reservations={reservations}
+      totalPeople={totalPeople}
+      totalCapacity={TOTAL_CAPACITY}
+      percentage={percentage}
+      selectedSlotLabel={selectedSlot?.label || ""}
+      tableUsages={tableUsages}
+    />
   );
 }
