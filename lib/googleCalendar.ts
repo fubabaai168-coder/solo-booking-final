@@ -81,6 +81,12 @@ async function getCalendarClient() {
     private_key = keyData.private_key;
   }
 
+  // 印出實際使用的 Service Account Email
+  const serviceAccountEmail = client_email;
+  console.log("[GCalendar][Auth][ServiceAccount]", {
+    serviceAccountEmail,
+  });
+
   const auth = new google.auth.JWT({
     email: client_email,
     key: private_key,
