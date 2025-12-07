@@ -57,7 +57,26 @@ function loadServiceAccountKey() {
 }
 
 async function getCalendarClient() {
-  const { client_email, private_key } = loadServiceAccountKey();
+  // 優先使用環境變數，如果不存在則使用檔案
+  const googleServiceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const rawGooglePrivateKey = process.env.GOOGLE_PRIVATE_KEY || "";
+  const googlePrivateKey = rawGooglePrivateKey.replace(/\\n/g, "\n");
+
+  let client_email: string;
+  let private_key: string;
+
+  if (googleServiceAccountEmail && rawGooglePrivateKey) {
+    // 使用環境變數
+    console.log("[GCalendar][Auth] 使用環境變數建立認證");
+    client_email = googleServiceAccountEmail;
+    private_key = googlePrivateKey;
+  } else {
+    // 使用檔案
+    console.log("[GCalendar][Auth] 使用檔案建立認證");
+    const keyData = loadServiceAccountKey();
+    client_email = keyData.client_email;
+    private_key = keyData.private_key;
+  }
 
   const auth = new google.auth.JWT({
     email: client_email,
@@ -74,31 +93,81 @@ async function getCalendarClient() {
 }
 
 export async function createGoogleCalendarEvent(input: CreateEventInput) {
+  // === 環境變數檢查與 log ===
+  const googleServiceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const rawGooglePrivateKey = process.env.GOOGLE_PRIVATE_KEY || "";
+  const googleCalendarId = process.env.GOOGLE_CALENDAR_ID;
+  const googleCalendarIdBrunch = process.env.GOOGLE_CALENDAR_ID_BRUNCH;
+
+  // 修正 Vercel 將換行存成 '\n' 字串的問題
+  const googlePrivateKey = rawGooglePrivateKey.replace(/\\n/g, "\n");
+
+  console.log("[GCalendar][Config]", {
+    hasServiceAccountEmail: !!googleServiceAccountEmail,
+    hasPrivateKey: !!rawGooglePrivateKey,
+    hasCalendarId: !!googleCalendarId,
+    hasCalendarIdBrunch: !!googleCalendarIdBrunch,
+  });
+
+  if (!googleServiceAccountEmail || !rawGooglePrivateKey || (!googleCalendarId && !googleCalendarIdBrunch)) {
+    console.error("[GCalendar][Config][MissingEnv]", {
+      hasServiceAccountEmail: !!googleServiceAccountEmail,
+      hasPrivateKey: !!rawGooglePrivateKey,
+      hasCalendarId: !!googleCalendarId,
+      hasCalendarIdBrunch: !!googleCalendarIdBrunch,
+    });
+    // 保持原本行為：如果目前程式是「只印錯誤但不中止預約」，就不要 throw，只是 log
+    // 如果原本有特定錯誤處理邏輯，請依原邏輯延續。
+  }
+
   const calendar = await getCalendarClient();
 
   const calendarId =
     input.calendarId || process.env.GOOGLE_CALENDAR_ID_BRUNCH;
 
   if (!calendarId) {
-    console.error("[GoogleCalendar] Missing calendarId");
+    console.error("[GCalendar][Config][MissingCalendarId]");
     throw new Error("Google Calendar ID not configured");
   }
 
-  const res = await calendar.events.insert({
-    calendarId,
-    requestBody: {
+  try {
+    console.log("[GCalendar][CreateEvent][Start]", {
+      calendarId: calendarId,
       summary: input.summary,
-      description: input.description ?? "",
-      start: {
-        dateTime: input.startDateTime,
-      },
-      end: {
-        dateTime: input.endDateTime,
-      },
-    },
-  });
+      start: input.startDateTime,
+      end: input.endDateTime,
+    });
 
-  return res.data; // 內含 id, status, htmlLink 等欄位
+    const res = await calendar.events.insert({
+      calendarId,
+      requestBody: {
+        summary: input.summary,
+        description: input.description ?? "",
+        start: {
+          dateTime: input.startDateTime,
+        },
+        end: {
+          dateTime: input.endDateTime,
+        },
+      },
+    });
+
+    console.log("[GCalendar][CreateEvent][Success]", {
+      eventId: res.data.id,
+      status: res.status,
+    });
+
+    return res.data; // 內含 id, status, htmlLink 等欄位
+  } catch (error: any) {
+    console.error("[GCalendar][CreateEvent][Error]", {
+      message: error?.message,
+      code: error?.code,
+      errors: error?.errors,
+      responseData: error?.response?.data,
+    });
+    // 保留原本對錯誤的處理方式：重新 throw，讓上層處理
+    throw error;
+  }
 }
 
 // 匯出 createCalendarEvent 作為 createGoogleCalendarEvent 的別名
@@ -153,3 +222,5 @@ export async function createCalendarEventFromReservation(input: CreateCalendarEv
     endDateTime,
   });
 }
+
+// [GCalendar] logging & env diagnostics added for debugging
