@@ -5,6 +5,9 @@ import * as path from "node:path";
 
 const SCOPES = ["https://www.googleapis.com/auth/calendar"];
 
+// 集中管理 calendarId 並方便 log
+const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID || "43cf07ce5a94c83d80110b3c9cd29d32ac1a9aec7057c09c03aff94d16e04d40@group.calendar.google.com";
+
 type CreateEventInput = {
   summary: string;
   description?: string;
@@ -128,19 +131,32 @@ export async function createGoogleCalendarEvent(input: CreateEventInput) {
   const calendar = await getCalendarClient();
 
   const calendarId =
-    input.calendarId || process.env.GOOGLE_CALENDAR_ID_BRUNCH || googleCalendarId;
+    input.calendarId || process.env.GOOGLE_CALENDAR_ID_BRUNCH || googleCalendarId || CALENDAR_ID;
 
   if (!calendarId) {
     console.error("[GCalendar][Lib][Config][MissingCalendarId]");
     throw new Error("Google Calendar ID not configured");
   }
 
+  // 印出實際使用的 calendarId，方便除錯
+  console.log("[GCalendar][Lib][CreateEvent][CalendarId]", {
+    actualCalendarId: calendarId,
+    source: input.calendarId 
+      ? "input.calendarId" 
+      : process.env.GOOGLE_CALENDAR_ID_BRUNCH 
+        ? "GOOGLE_CALENDAR_ID_BRUNCH" 
+        : googleCalendarId 
+          ? "GOOGLE_CALENDAR_ID" 
+          : "CALENDAR_ID (fallback)",
+  });
+
   try {
-    console.log("[GCalendar][Lib][CreateEvent][Request]", {
-      calendarId: calendarId,
+    // Request 級別的 log，印出要寫入的關鍵欄位
+    console.log("[GCalendar][Request]", {
+      calendarId: CALENDAR_ID,
       summary: input.summary,
-      start: input.startDateTime,
-      end: input.endDateTime,
+      start: new Date(input.startDateTime).toISOString(),
+      end: new Date(input.endDateTime).toISOString(),
     });
 
     const res = await calendar.events.insert({
@@ -160,15 +176,17 @@ export async function createGoogleCalendarEvent(input: CreateEventInput) {
     console.log("[GCalendar][Lib][CreateEvent][Success]", {
       eventId: res.data.id,
       status: res.status,
+      calendarId: calendarId,
     });
 
     return res.data; // 內含 id, status, htmlLink 等欄位
   } catch (error: any) {
-    console.error("[GCalendar][Lib][CreateEvent][Error]", {
-      message: error?.message,
-      code: error?.code,
-      errors: error?.errors,
-      responseData: error?.response?.data,
+    // 補強原始錯誤輸出：印出實際使用的 calendarId 與 Google 回傳的原始錯誤內容
+    console.error("[GCalendar][Error][Raw]", {
+      calendarId: CALENDAR_ID,
+      errorMessage: error?.message,
+      errorCode: error?.code,
+      errorResponse: error?.response?.data,
     });
     // 保留原本對錯誤的處理方式：重新 throw，讓上層處理
     throw error;
@@ -189,6 +207,11 @@ type CreateCalendarEventInput = {
 };
 
 export async function createCalendarEventFromReservation(input: CreateCalendarEventInput) {
+  // 設定與除錯 log
+  console.log("[GCalendar][Config]", {
+    calendarId: CALENDAR_ID,
+  });
+
   // 解析時間格式：time 格式為 "HH:MM-HH:MM" 或 "HH:MM - HH:MM"
   const timeStr = input.time.replace(/\s+/g, ""); // 移除所有空格
   const [startStr, endStr] = timeStr.split("-");
@@ -208,6 +231,10 @@ export async function createCalendarEventFromReservation(input: CreateCalendarEv
   const startDateTime = `${input.date}T${startHour.padStart(2, "0")}:${startMinute.padStart(2, "0")}:00+08:00`;
   const endDateTime = `${input.date}T${endHour.padStart(2, "0")}:${endMinute.padStart(2, "0")}:00+08:00`;
 
+  // 轉換為 Date 物件供 log 使用
+  const startDate = new Date(startDateTime);
+  const endDate = new Date(endDateTime);
+
   // 組合 summary 和 description
   const summary = `${input.name} - ${input.people}人預約`;
   const description = [
@@ -218,6 +245,14 @@ export async function createCalendarEventFromReservation(input: CreateCalendarEv
   ]
     .filter(Boolean)
     .join("\n");
+
+  // Request 級別的 log，印出要寫入的關鍵欄位
+  console.log("[GCalendar][Request]", {
+    calendarId: CALENDAR_ID,
+    summary,
+    start: startDate.toISOString(),
+    end: endDate.toISOString(),
+  });
 
   // 呼叫底層函式
   return createGoogleCalendarEvent({
