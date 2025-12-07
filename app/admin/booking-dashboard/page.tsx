@@ -10,13 +10,10 @@ export const dynamic = "force-dynamic";
 // 總座位容量（固定配置）
 const TOTAL_CAPACITY = 32; // 2人桌×4 + 4人桌×3 + 6人桌×2 = 8 + 12 + 12 = 32
 
-function toIsoFromDateAndSlot(date: string, slot: { start: string; end: string }) {
-  const start = new Date(`${date}T${slot.start}`);
-  const end = new Date(`${date}T${slot.end}`);
-  return {
-    reservedStart: start.toISOString(),
-    reservedEnd: end.toISOString(),
-  };
+function buildTaipeiDate(dateStr: string, timeStr: string) {
+  // dateStr: "2025-12-07"
+  // timeStr: "09:00" / "10:30" 等
+  return new Date(`${dateStr}T${timeStr}:00+08:00`);
 }
 
 async function getReservationsByDateAndSlot(date: string, slotId: string) {
@@ -26,10 +23,17 @@ async function getReservationsByDateAndSlot(date: string, slotId: string) {
       return { reservations: [], totalPeople: 0 };
     }
 
-    // 計算該時段的 UTC 時間範圍
-    const { reservedStart, reservedEnd } = toIsoFromDateAndSlot(date, slot);
-    const slotStartDate = new Date(reservedStart);
-    const slotEndDate = new Date(reservedEnd);
+    // 計算該時段的台北時間範圍（強制 +08:00）
+    const slotStart = buildTaipeiDate(date, slot.start);
+    const slotEnd = buildTaipeiDate(date, slot.end);
+
+    // 在 Prisma 查詢前加上 log（Server 端用）
+    console.log("[BookingDashboard] query window", {
+      selectedDate: date,
+      slotId: slot.id,
+      slotStart: slotStart.toISOString(),
+      slotEnd: slotEnd.toISOString(),
+    });
 
     // 查詢該時段內的預約
     // 條件：reservedStart >= slotStart AND reservedStart < slotEnd
@@ -37,8 +41,8 @@ async function getReservationsByDateAndSlot(date: string, slotId: string) {
     const reservations = await prisma.reservation.findMany({
       where: {
         reservedStart: {
-          gte: slotStartDate,
-          lt: slotEndDate,
+          gte: slotStart,
+          lt: slotEnd,
         },
         NOT: {
           status: "CANCELLED",
