@@ -1,8 +1,13 @@
 // app/layout.tsx
 import type { Metadata } from "next";
+import Script from "next/script";
+import { Suspense } from "react";
 import "./globals.css";
 // import AIChatButton from "@/components/AIChatButton"; // 舊的 Gemini 客服 widget，已停用
 import { SupportChatWidget } from "@/components/support/SupportChatWidget";
+import { AnalyticsTracker } from "./_components/AnalyticsTracker";
+
+const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
 export const metadata: Metadata = {
   title: "SoloAI 官方網站 | AI 行銷 × 智慧轉型",
@@ -49,6 +54,29 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SupportChatWidget />
         {/* 舊的 AI 客服聊天組件（已停用） */}
         {/* <AIChatButton /> */}
+
+        {/* Google Analytics 4 */}
+        {process.env.NODE_ENV === "production" && GA_MEASUREMENT_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga4-init" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${GA_MEASUREMENT_ID}', {
+                  page_path: window.location.pathname,
+                });
+              `}
+            </Script>
+            <Suspense fallback={null}>
+              <AnalyticsTracker />
+            </Suspense>
+          </>
+        )}
       </body>
     </html>
   );
