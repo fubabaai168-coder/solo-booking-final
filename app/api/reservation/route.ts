@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createGoogleCalendarEvent } from "@/lib/googleCalendar";
+import { createCalendarEvent } from "@/lib/googleCalendar";
 
 export const runtime = "nodejs";
 
@@ -61,7 +61,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // 嘗試建立 Google 日曆事件
+    // =======================================================================
+    // 【SaaS Ready】Google Calendar 同步
+    // =======================================================================
+    // 預留擴充點：未來可支援多分店 calendarId 切換
+    // 目前使用環境變數 GOOGLE_CALENDAR_ID
+    // 未來可根據 reservation.branchId 動態選擇對應的 calendarId
+    // =======================================================================
     try {
       const summary = `${name} - ${people}人預約`;
       const description = [
@@ -73,24 +79,25 @@ export async function POST(req: NextRequest) {
         .filter(Boolean)
         .join("\n");
 
-      const calendarEvent = await createGoogleCalendarEvent({
+      // 使用統一的 createCalendarEvent 函數
+      const calendarResult = await createCalendarEvent({
         summary,
         description,
-        startDateTime: reservedStart.toISOString(),
-        endDateTime: reservedEnd.toISOString(),
+        start: reservedStart.toISOString(),
+        end: reservedEnd.toISOString(),
       });
 
       // 更新資料庫寫入 calendarEventId
-      if (calendarEvent?.id) {
+      if (calendarResult.success && calendarResult.eventId) {
         await prisma.reservation.update({
           where: { id: reservation.id },
-          data: { calendarEventId: calendarEvent.id },
+          data: { calendarEventId: calendarResult.eventId },
         });
       }
     } catch (calendarError: any) {
       // 日曆同步失敗不影響預約成功，只記錄錯誤
       // 使用與 lib/googleCalendar.ts 一致的錯誤 log 格式
-      console.error("[GCalendar][LegacyRoute][CreateEvent][Error]", {
+      console.error("[GCalendar][ReservationRoute][CreateEvent][Error]", {
         reservationId: reservation.id,
         errorCode: calendarError?.code,
         errorMessage:

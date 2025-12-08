@@ -57,7 +57,6 @@ yarn-error.log*
 # OS / Tools / Misc
 # ============================
 .DS_Store
-*.pem
 
 # Vercel
 .vercel
@@ -66,15 +65,18 @@ yarn-error.log*
 # Google / Service Account
 # ============================
 
-# 強制忽略所有 service account key
-service-account/*.json
-*.serviceaccount.json
-*.json.json
-
 # 允許部分 JSON（必要 config）
 !package.json
 !package-lock.json
 !tsconfig.json
+
+# ============================
+# Google Credentials
+# ============================
+service-account/
+/service-account.json
+credentials.json
+*.pem
 
 # ============================
 # Custom ignores (專案特別)

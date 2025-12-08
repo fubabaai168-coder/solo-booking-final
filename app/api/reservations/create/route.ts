@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TIME_SLOTS } from "@/lib/timeSlots";
-import { createGoogleCalendarEvent } from "@/lib/googleCalendar";
+import { createCalendarEvent } from "@/lib/googleCalendar";
 
 // =======================================================================
 // 類型定義
@@ -147,7 +147,13 @@ export async function POST(request: NextRequest) {
 
     console.log('[reservations/create] 預約建立成功:', { id: newReservation.id });
 
-    // 9. 同步到 Google Calendar
+    // =======================================================================
+    // 【SaaS Ready】Google Calendar 同步
+    // =======================================================================
+    // 預留擴充點：未來可支援多分店 calendarId 切換
+    // 目前使用環境變數 GOOGLE_CALENDAR_ID
+    // 未來可根據 newReservation.branchId 動態選擇對應的 calendarId
+    // =======================================================================
     try {
       console.log("[GCalendar][Route][BeforeCall]", {
         reservationId: newReservation.id,
@@ -166,24 +172,25 @@ export async function POST(request: NextRequest) {
         .filter(Boolean)
         .join("\n");
 
-      const calendarEvent = await createGoogleCalendarEvent({
+      // 使用統一的 createCalendarEvent 函數
+      const calendarResult = await createCalendarEvent({
         summary,
         description,
-        startDateTime: newReservation.reservedStart.toISOString(),
-        endDateTime: newReservation.reservedEnd.toISOString(),
+        start: newReservation.reservedStart.toISOString(),
+        end: newReservation.reservedEnd.toISOString(),
       });
 
       // 更新資料庫寫入 calendarEventId
-      if (calendarEvent?.id) {
+      if (calendarResult.success && calendarResult.eventId) {
         await prisma.reservation.update({
           where: { id: newReservation.id },
-          data: { calendarEventId: calendarEvent.id },
+          data: { calendarEventId: calendarResult.eventId },
         });
       }
 
       console.log("[GCalendar][Route][AfterCall]", {
         reservationId: newReservation.id,
-        calendarEventId: calendarEvent?.id,
+        calendarEventId: calendarResult.eventId,
       });
     } catch (calendarError: any) {
       // 日曆同步失敗不影響預約成功，只記錄錯誤
