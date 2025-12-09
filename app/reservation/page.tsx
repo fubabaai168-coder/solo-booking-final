@@ -3,6 +3,7 @@
 "use client";
 
 import { FormEvent, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 type ApiResponse =
   | {
@@ -40,6 +41,7 @@ function toIsoFromDateAndSlot(date: string, slot: { start: string; end: string }
 }
 
 export default function ReservationPage() {
+  const router = useRouter();
   const [customerName, setCustomerName] = useState("");
   const [phone, setPhone] = useState("");
   const [peopleCount, setPeopleCount] = useState(2);
@@ -52,6 +54,16 @@ export default function ReservationPage() {
 
   // 計算今天日期字串（YYYY-MM-DD）
   const today = new Date().toISOString().slice(0, 10);
+
+  // 預約成功後自動跳轉
+  useEffect(() => {
+    if (result && "message" in result) {
+      const timer = setTimeout(() => {
+        router.push("/");
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [result, router]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
