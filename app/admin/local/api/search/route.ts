@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
+import { Buffer } from "buffer";
 
 export async function GET(req: NextRequest) {
   const keyword = req.nextUrl.searchParams.get("keyword") || "";
@@ -51,10 +52,21 @@ export async function GET(req: NextRequest) {
 
     // === Google Sheets 寫入 ===
     if (results.length > 0) {
-      // 這裡改成傳入「單一 options 物件」，符合新版型別
+      // 從環境變數讀取 Base64 編碼的服務帳號金鑰
+      const base64Key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_BASE64;
+      
+      if (!base64Key) {
+        throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 環境變數未設定！");
+      }
+
+      // 將 Base64 字串解碼回原始的 JSON 字串
+      const jsonString = Buffer.from(base64Key, "base64").toString("utf8");
+      const keyObj = JSON.parse(jsonString);
+
+      // 使用 JWT 進行服務初始化
       const auth = new google.auth.JWT({
-        email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        key: process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.replace(/\\n/g, "\n"),
+        email: keyObj.client_email,
+        key: keyObj.private_key,
         scopes: ["https://www.googleapis.com/auth/spreadsheets"],
       });
 

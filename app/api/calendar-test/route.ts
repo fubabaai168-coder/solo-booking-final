@@ -1,31 +1,38 @@
+export const runtime = "nodejs";
+
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
+import { Buffer } from "buffer";
 
 export async function GET(req: NextRequest) {
   try {
-    const serviceEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+    const base64Key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_BASE64;
     const calendarId = process.env.GOOGLE_CALENDAR_ID;
 
-    if (!serviceEmail || !rawKey || !calendarId) {
+    if (!base64Key) {
+      throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 未設定");
+    }
+
+    if (!calendarId) {
       return NextResponse.json(
         {
           success: false,
           message: "環境變數缺失",
-          serviceEmail,
-          rawKeyExists: !!rawKey,
+          base64KeyExists: !!base64Key,
           calendarId,
         },
         { status: 500 }
       );
     }
 
-    // 關鍵：修正換行
-    const cleanedKey = rawKey.replace(/\\n/g, "\n");
+    // 將 Base64 字串解碼回原始的 JSON 字串
+    const jsonString = Buffer.from(base64Key, "base64").toString("utf8");
+    const keyObj = JSON.parse(jsonString);
 
+    // 使用 JWT 進行服務初始化
     const auth = new google.auth.JWT({
-      email: serviceEmail,
-      key: cleanedKey,
+      email: keyObj.client_email,
+      key: keyObj.private_key,
       scopes: ["https://www.googleapis.com/auth/calendar"],
     });
 

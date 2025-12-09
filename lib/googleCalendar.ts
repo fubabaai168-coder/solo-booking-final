@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { Buffer } from "buffer";
 
 /**
  * 取得 Google Calendar 客戶端
@@ -17,10 +18,9 @@ import { google } from "googleapis";
  */
 export function getCalendarClient(branchId?: string) {
   // =======================================================================
-  // 【1】從 Vercel 讀取環境變數（可能包含引號的單行字串）
+  // 【1】從 Vercel 環境變數讀取 Base64 編碼的服務帳號金鑰
   // =======================================================================
-  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const rawKeyString = process.env.GOOGLE_PRIVATE_KEY;
+  const base64Key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_BASE64;
   
   // =======================================================================
   // 【SaaS Ready】分店 calendarId 擴充點
@@ -40,67 +40,44 @@ export function getCalendarClient(branchId?: string) {
   //   calendarId = process.env[`GOOGLE_CALENDAR_ID_${branchId}`];
   // }
 
-  if (!clientEmail || !rawKeyString || !calendarId) {
+  if (!base64Key || !calendarId) {
     console.error("❌ 缺少 Google Calendar 必要環境變數", {
-      hasEmail: !!clientEmail,
-      hasPrivateKey: !!rawKeyString,
+      hasBase64Key: !!base64Key,
       hasCalendarId: !!calendarId,
     });
     return null;
   }
 
   // =======================================================================
-  // 【2】移除字串兩側可能存在的引號，並確保不是 undefined
+  // 【2】將 Base64 字串解碼回原始的 JSON 字串
   // =======================================================================
-  let cleanKeyString = rawKeyString;
-
-  if (rawKeyString && rawKeyString.startsWith('"') && rawKeyString.endsWith('"')) {
-    // 移除外部雙引號，留下內部的轉義字串
-    cleanKeyString = rawKeyString.slice(1, -1);
-    console.log("🔧 已移除 PRIVATE_KEY 外部引號");
-  }
-
-  // =======================================================================
-  // 【DEBUG】檢查 PRIVATE_KEY 前 30 字元（可上正式線）
-  // =======================================================================
-  console.log("🔑 PRIVATE_KEY 前 30 字元：", cleanKeyString.substring(0, 30));
-  console.log("🔑 PRIVATE_KEY 長度：", cleanKeyString.length);
-
-  // =======================================================================
-  // 【3】核心：將字串轉為 Google 服務帳戶函式庫需要的格式
-  // =======================================================================
-  // Google 函式庫（googleapis）需要 PEM 格式的金鑰字串
-  // 處理多種可能的格式問題：
-  // 1. 將 \n 轉義字元轉換為實際換行
-  // 2. 確保 BEGIN/END 標記後有正確的換行
-  // =======================================================================
-  let fixedKey: string;
-
+  let credentials: any;
+  
   try {
-    fixedKey = cleanKeyString
-      .replace(/\\n/g, "\n")
-      .replace(/-----BEGIN PRIVATE KEY-----/, "-----BEGIN PRIVATE KEY-----\n")
-      .replace(/-----END PRIVATE KEY-----/, "\n-----END PRIVATE KEY-----");
-
-    // 驗證金鑰格式
-    if (!fixedKey.includes("-----BEGIN PRIVATE KEY-----")) {
-      console.warn("⚠️ PRIVATE_KEY 格式可能不正確，未找到 BEGIN 標記");
+    const decodedJsonString = Buffer.from(base64Key, "base64").toString("utf8");
+    credentials = JSON.parse(decodedJsonString);
+    
+    // 驗證必要欄位
+    if (!credentials.client_email || !credentials.private_key) {
+      console.error("❌ 解碼後的憑證缺少必要欄位", {
+        hasClientEmail: !!credentials.client_email,
+        hasPrivateKey: !!credentials.private_key,
+      });
+      return null;
     }
-    if (!fixedKey.includes("-----END PRIVATE KEY-----")) {
-      console.warn("⚠️ PRIVATE_KEY 格式可能不正確，未找到 END 標記");
-    }
-  } catch (e) {
-    console.error("❌ 無法解析服務帳戶金鑰:", e);
-    // 失敗時，退回使用清理後的字串
-    fixedKey = cleanKeyString;
+    
+    console.log("✅ 成功解碼服務帳號憑證，Email:", credentials.client_email);
+  } catch (e: any) {
+    console.error("❌ 無法解碼服務帳號憑證:", e.message);
+    return null;
   }
 
   // =======================================================================
-  // 【4】將 credentials 傳遞給 Google API 函式庫
+  // 【3】使用解碼後的憑證進行服務初始化（使用 JWT）
   // =======================================================================
   const auth = new google.auth.JWT({
-    email: clientEmail,
-    key: fixedKey,
+    email: credentials.client_email,
+    key: credentials.private_key,
     scopes: ["https://www.googleapis.com/auth/calendar"],
   });
 
