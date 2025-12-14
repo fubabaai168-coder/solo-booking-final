@@ -10,3 +10,47 @@
 今日實收金額
 
 主要客源管道（單選）
+
+Client ID (v1)
+
+Primary Key：Phone（手機號碼）
+
+規則：同一 Phone 視為同一客戶
+
+備註：v1 不做合併、不做多重識別；v2 才擴充 LINE / Email
+Revenue Record (v1)
+
+僅列 3 個欄位：
+
+client_phone
+
+amount
+
+service_date
+
+備註一句：v1 不拆項、不算成本，只記實收
+Lead Source (v1)
+
+列出 5 個固定選項即可：
+
+Google
+
+Instagram
+
+Facebook
+
+LINE
+
+Unknown
+
+備註一句：v1 僅人工選擇或客服判定，不做自動歸因
+
+Value Proposition (v1)：＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿
+
+一句話規則：
+
+給老闆看得懂
+
+不提 AI 名詞
+
+不超過 20 字
