@@ -1,6 +1,13 @@
+/// 規則錨點（P0）
+/// - MenuPeriod 決定「可販售時段」
+/// - StaffShift 決定「可服務人力」
+/// - v1 不做任何外鍵或關聯
+/// - v2 才會引入關聯與約束（FK / relation）
+
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -83,3 +90,24 @@ model ChatMessage {
   createdAt DateTime @default(now())
 }
 
+/// StaffShift v1 (stable) - 排班基礎模型，勿隨意更動
+/// v2 可能關聯：MenuPeriod（以時段對齊排班）
+model StaffShift {
+  id        String   @id @default(cuid())
+  staffName String
+  shiftDate DateTime
+  startTime String
+  endTime   String
+  createdAt DateTime @default(now())
+}
+
+/// MenuPeriod v1 (stable) - 菜單時段基礎模型，勿隨意更動
+/// v2 可能關聯：StaffShift、Reservation
+model MenuPeriod {
+  id        String   @id @default(cuid())
+  name      String
+  startTime String
+  endTime   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
