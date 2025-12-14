@@ -92,3 +92,21 @@ First Use Case (v1)
 老闆每日查看報告 ≥ X 天
 
 回訊時間下降 ≥ X %
+Day 0 Go-Live Checklist (v1)
+
+行銷入口已接（IG/LINE 任一）
+
+客服話術啟用
+
+可預約時段已設定
+
+手機號碼為 Client ID
+
+日報可正常產出
+Day 7 Review (v1)
+
+總預約數
+
+總實收金額
+
+主要客源管道
