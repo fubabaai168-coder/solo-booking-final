@@ -65,3 +65,10 @@ Ideal Customer Profile (v1)
 目前預約方式（LINE/IG/電話）
 
 最大痛點（一句話）
+Pricing (v1)
+
+方案：單一方案
+
+計費方式：月費
+
+價格區間：請填一個你心理可接受的數字（例如：NT$XXX / 月）
