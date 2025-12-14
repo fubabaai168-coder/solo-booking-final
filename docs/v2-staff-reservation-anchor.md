@@ -13,3 +13,8 @@ v1 / v2 邊界說明（Safety）
 v1 資料如何保持不變
 
 v2 只新增、不修改既有行為
+〈Minimal Fields〉
+
+reservation.staff_shift_id（nullable）
+
+說明一句話：v2 才寫入，v1 資料一律為 null
