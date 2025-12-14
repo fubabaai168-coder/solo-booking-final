@@ -17,4 +17,10 @@ v2 只新增、不修改既有行為
 
 reservation.staff_shift_id（nullable）
 
-說明一句話：v2 才寫入，v1 資料一律為 null
+說明一句話：v2 才寫入，v1 資料一律為 
+同一 staff_shift_id 被多筆 reservation 指到時：（Reject / Waitlist / Reassign 擇一）
+
+shift 容量滿時：（Reject / Waitlist 擇一）
+
+人工調整時的優先權：（StaffShift 優先 / Reservation 優先 擇一）
+Reference：本規則邏輯對齊「養生館按摩預約系統（get_master_times / 時間區間重疊檢查）」；v2 不另發明新衝突模型。
